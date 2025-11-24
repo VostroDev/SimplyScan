@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ... existing styles if needed, or just replace ... */
+:root {
+  --background-color: #ffffff;
+}
