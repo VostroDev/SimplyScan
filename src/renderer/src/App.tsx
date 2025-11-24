@@ -113,9 +113,9 @@ function App(): JSX.Element {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col text-gray-900">
+    <div className="h-screen bg-gray-50 flex flex-col text-gray-900">
       {/* Header */}
-      <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm">
+      <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm shrink-0">
         <div className="flex items-center gap-2">
           <Printer className="w-6 h-6 text-blue-600" />
           <h1 className="text-xl font-bold text-gray-800">SimplyScan</h1>
@@ -182,7 +182,7 @@ function App(): JSX.Element {
       </main>
 
       {/* Footer Actions */}
-      <footer className="bg-white border-t px-6 py-4 flex items-center justify-between">
+      <footer className="bg-white border-t px-6 py-4 flex items-center justify-between shrink-0">
         <div className="text-sm text-gray-500">
           {pages.length} page{pages.length !== 1 && 's'} scanned
         </div>
