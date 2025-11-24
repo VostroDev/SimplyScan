@@ -31,7 +31,7 @@ interface ScannedPage {
   path: string
 }
 
-function App(): JSX.Element {
+function App(): React.ReactElement {
   const [scanners, setScanners] = useState<Scanner[]>([])
   const [selectedScanner, setSelectedScanner] = useState<string>('')
   const [pages, setPages] = useState<ScannedPage[]>([])
@@ -196,7 +196,9 @@ function App(): JSX.Element {
         {pages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
             <Printer className="w-16 h-16 opacity-20" />
-            <p className="text-lg">Ready to scan. Select a scanner and click &quot;Scan Page&quot;.</p>
+            <p className="text-lg">
+              Ready to scan. Select a scanner and click &quot;Scan Page&quot;.
+            </p>
           </div>
         ) : (
           <DndContext
