@@ -32,11 +32,11 @@ try {
 export const listScanners = async (): Promise<ScannerDevice[]> => {
   const tempDir = app.getPath('temp')
   const scriptPath = path.join(tempDir, `list-scanners-${Date.now()}.ps1`)
-  
+
   await fs.promises.writeFile(scriptPath, PS_LIST_SCANNERS)
 
   return new Promise((resolve) => {
-    const powershell = process.env.SystemRoot 
+    const powershell = process.env.SystemRoot
       ? path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
       : 'powershell'
 
@@ -46,7 +46,7 @@ export const listScanners = async (): Promise<ScannerDevice[]> => {
 
     let output = ''
     let error = ''
-    
+
     ps.stdout.on('data', (data) => {
       output += data.toString()
     })
@@ -70,13 +70,14 @@ export const listScanners = async (): Promise<ScannerDevice[]> => {
       try {
         const trimmed = output.trim()
         console.log('WIA Scanner raw output:', trimmed)
-        
+
         if (!trimmed) {
           resolve([])
           return
         }
         const parsed = JSON.parse(trimmed)
         const result = Array.isArray(parsed) ? parsed : [parsed]
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         resolve(result.map((r: any) => ({ id: r.id, name: r.name })))
       } catch (e) {
         console.error('Failed to parse scanner list. Raw output:', output, 'Error:', e)
@@ -139,11 +140,11 @@ try {
     exit 1
 }
   `
-  
+
   await fs.promises.writeFile(scriptPath, actualScript)
 
   return new Promise((resolve, reject) => {
-    const powershell = process.env.SystemRoot 
+    const powershell = process.env.SystemRoot
       ? path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
       : 'powershell'
 
@@ -152,19 +153,19 @@ try {
     })
 
     let error = ''
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     let stdout = ''
 
     ps.stdout.on('data', (d) => (stdout += d.toString()))
     ps.stderr.on('data', (d) => (error += d.toString()))
 
     ps.on('close', async (code) => {
-       try {
+      try {
         await fs.promises.unlink(scriptPath)
       } catch (e) {
         console.error('Failed to cleanup scan script:', e)
       }
-      
+
       if (code !== 0) {
         reject(new Error(`Scan failed: ${error || 'Unknown error'}`))
       } else {

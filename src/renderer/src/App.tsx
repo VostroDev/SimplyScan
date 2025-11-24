@@ -1,151 +1,154 @@
-import { useEffect, useState } from 'react';
-import { jsPDF } from 'jspdf';
-import { v4 as uuidv4 } from 'uuid';
-import { Loader2, Printer, FileDown, RefreshCw } from 'lucide-react';
-import clsx from 'clsx';
+import { useEffect, useState } from 'react'
+import { jsPDF } from 'jspdf'
+import { v4 as uuidv4 } from 'uuid'
+import { Loader2, Printer, FileDown, RefreshCw } from 'lucide-react'
+import clsx from 'clsx'
 import {
-  DndContext, 
+  DndContext,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
   DragEndEvent
-} from '@dnd-kit/core';
+} from '@dnd-kit/core'
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  rectSortingStrategy,
-} from '@dnd-kit/sortable';
-import { SortablePage } from './components/SortablePage';
+  rectSortingStrategy
+} from '@dnd-kit/sortable'
+import { SortablePage } from './components/SortablePage'
 
 interface Scanner {
-  id: string;
-  name: string;
+  id: string
+  name: string
 }
 
 interface ScannedPage {
-  id: string;
-  image: string;
-  path: string;
+  id: string
+  image: string
+  path: string
 }
 
 function App(): JSX.Element {
-  const [scanners, setScanners] = useState<Scanner[]>([]);
-  const [selectedScanner, setSelectedScanner] = useState<string>('');
-  const [pages, setPages] = useState<ScannedPage[]>([]);
-  const [isScanning, setIsScanning] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [scanners, setScanners] = useState<Scanner[]>([])
+  const [selectedScanner, setSelectedScanner] = useState<string>('')
+  const [pages, setPages] = useState<ScannedPage[]>([])
+  const [isScanning, setIsScanning] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
+      coordinateGetter: sortableKeyboardCoordinates
     })
-  );
+  )
 
   useEffect(() => {
-    loadScanners();
-  }, []);
+    loadScanners()
+  }, [])
 
-  const loadScanners = async () => {
+  const loadScanners = async (): Promise<void> => {
     try {
-      const list = await window.api.getScanners();
-      setScanners(list);
+      const list = await window.api.getScanners()
+      setScanners(list)
       if (list.length > 0) {
-        setSelectedScanner(list[0].id);
+        setSelectedScanner(list[0].id)
       }
     } catch (err) {
-      console.error("Failed to load scanners", err);
-      setError("Failed to load scanners. Ensure WIA is enabled.");
+      console.error('Failed to load scanners', err)
+      setError('Failed to load scanners. Ensure WIA is enabled.')
     }
-  };
+  }
 
-  const handleScan = async () => {
-    if (!selectedScanner) return;
-    setIsScanning(true);
-    setError(null);
+  const handleScan = async (): Promise<void> => {
+    if (!selectedScanner) return
+    setIsScanning(true)
+    setError(null)
 
     try {
-      const result = await window.api.scanPage(selectedScanner);
+      const result = await window.api.scanPage(selectedScanner)
       if (result.success && result.image) {
-        setPages(prev => [...prev, {
-          id: uuidv4(),
-          image: result.image!,
-          path: result.path || ''
-        }]);
+        setPages((prev) => [
+          ...prev,
+          {
+            id: uuidv4(),
+            image: result.image!,
+            path: result.path || ''
+          }
+        ])
       } else {
-        setError(result.error || "Unknown scanning error");
+        setError(result.error || 'Unknown scanning error')
       }
     } catch (err) {
-      setError("Failed to communicate with scanner.");
-      console.error(err);
+      setError('Failed to communicate with scanner.')
+      console.error(err)
     } finally {
-      setIsScanning(false);
+      setIsScanning(false)
     }
-  };
+  }
 
-  const handleDeletePage = (id: string) => {
-    setPages(prev => prev.filter(p => p.id !== id));
-  };
+  const handleDeletePage = (id: string): void => {
+    setPages((prev) => prev.filter((p) => p.id !== id))
+  }
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    
+  const handleDragEnd = (event: DragEndEvent): void => {
+    const { active, over } = event
+
     if (over && active.id !== over.id) {
       setPages((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id);
-        const newIndex = items.findIndex((item) => item.id === over.id);
-        return arrayMove(items, oldIndex, newIndex);
-      });
+        const oldIndex = items.findIndex((item) => item.id === active.id)
+        const newIndex = items.findIndex((item) => item.id === over.id)
+        return arrayMove(items, oldIndex, newIndex)
+      })
     }
-  };
+  }
 
-  const handleSavePDF = async () => {
-    if (pages.length === 0) return;
-    setIsSaving(true);
+  const handleSavePDF = async (): Promise<void> => {
+    if (pages.length === 0) return
+    setIsSaving(true)
 
     try {
-      const doc = new jsPDF();
-      
+      const doc = new jsPDF()
+
       pages.forEach((page, index) => {
-        if (index > 0) doc.addPage();
-        
-        const imgProps = doc.getImageProperties(page.image);
-        const pdfWidth = doc.internal.pageSize.getWidth();
-        const pdfHeight = doc.internal.pageSize.getHeight();
-        
+        if (index > 0) doc.addPage()
+
+        const imgProps = doc.getImageProperties(page.image)
+        const pdfWidth = doc.internal.pageSize.getWidth()
+        const pdfHeight = doc.internal.pageSize.getHeight()
+
         // Fit image to page while maintaining aspect ratio
-        const ratio = Math.min(pdfWidth / imgProps.width, pdfHeight / imgProps.height);
-        const w = imgProps.width * ratio;
-        const h = imgProps.height * ratio;
-        
+        const ratio = Math.min(pdfWidth / imgProps.width, pdfHeight / imgProps.height)
+        const w = imgProps.width * ratio
+        const h = imgProps.height * ratio
+
         // Center image
-        const x = (pdfWidth - w) / 2;
-        const y = (pdfHeight - h) / 2;
+        const x = (pdfWidth - w) / 2
+        const y = (pdfHeight - h) / 2
 
-        doc.addImage(page.image, 'JPEG', x, y, w, h);
-      });
+        doc.addImage(page.image, 'JPEG', x, y, w, h)
+      })
 
-      doc.save(`scan-${new Date().toISOString().slice(0, 10)}.pdf`);
-      
+      doc.save(`scan-${new Date().toISOString().slice(0, 10)}.pdf`)
+
       // Optional: Clear pages after save or ask user?
       // For now, just notify.
     } catch (err) {
-      console.error(err);
-      setError("Failed to save PDF.");
+      console.error(err)
+      setError('Failed to save PDF.')
     } finally {
-      setIsSaving(false);
+      setIsSaving(false)
     }
-  };
+  }
 
-  const handleClearSession = () => {
-    if (confirm("Are you sure you want to clear all scanned pages?")) {
-      setPages([]);
+  const handleClearSession = (): void => {
+    if (confirm('Are you sure you want to clear all scanned pages?')) {
+      setPages([])
     }
-  };
+  }
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col text-gray-900">
@@ -156,18 +159,20 @@ function App(): JSX.Element {
           <h1 className="text-xl font-bold text-gray-800">SimplyScan</h1>
         </div>
         <div className="flex items-center gap-4">
-          <select 
+          <select
             className="border rounded-md px-3 py-2 text-sm min-w-[200px]"
             value={selectedScanner}
             onChange={(e) => setSelectedScanner(e.target.value)}
             disabled={isScanning || scanners.length === 0}
           >
             {scanners.length === 0 && <option>No scanners found</option>}
-            {scanners.map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
+            {scanners.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
             ))}
           </select>
-          <button 
+          <button
             onClick={loadScanners}
             className="p-2 text-gray-500 hover:bg-gray-100 rounded-full"
             title="Refresh Scanners"
@@ -182,33 +187,32 @@ function App(): JSX.Element {
         {error && (
           <div className="mb-4 p-4 bg-red-50 text-red-600 rounded-md border border-red-200 flex justify-between items-center">
             <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-sm underline">Dismiss</button>
+            <button onClick={() => setError(null)} className="text-sm underline">
+              Dismiss
+            </button>
           </div>
         )}
 
         {pages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
             <Printer className="w-16 h-16 opacity-20" />
-            <p className="text-lg">Ready to scan. Select a scanner and click "Scan Page".</p>
+            <p className="text-lg">Ready to scan. Select a scanner and click &quot;Scan Page&quot;.</p>
           </div>
         ) : (
-          <DndContext 
-            sensors={sensors} 
-            collisionDetection={closestCenter} 
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext 
-              items={pages.map(p => p.id)} 
-              strategy={rectSortingStrategy}
-            >
+            <SortableContext items={pages.map((p) => p.id)} strategy={rectSortingStrategy}>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {pages.map((page, index) => (
-                  <SortablePage 
-                    key={page.id} 
-                    id={page.id} 
-                    image={page.image} 
-                    index={index} 
-                    onDelete={handleDeletePage} 
+                  <SortablePage
+                    key={page.id}
+                    id={page.id}
+                    image={page.image}
+                    index={index}
+                    onDelete={handleDeletePage}
                   />
                 ))}
               </div>
@@ -222,7 +226,7 @@ function App(): JSX.Element {
         <div className="text-sm text-gray-500">
           {pages.length} page{pages.length !== 1 && 's'} scanned
         </div>
-        
+
         <div className="flex items-center gap-3">
           {pages.length > 0 && (
             <button
@@ -238,8 +242,10 @@ function App(): JSX.Element {
             onClick={handleScan}
             disabled={isScanning || !selectedScanner}
             className={clsx(
-              "flex items-center gap-2 px-6 py-2 rounded-md text-white font-medium transition-all shadow-sm",
-              isScanning ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 hover:shadow-md"
+              'flex items-center gap-2 px-6 py-2 rounded-md text-white font-medium transition-all shadow-sm',
+              isScanning
+                ? 'bg-blue-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700 hover:shadow-md'
             )}
           >
             {isScanning ? (
@@ -277,7 +283,7 @@ function App(): JSX.Element {
         </div>
       </footer>
     </div>
-  );
+  )
 }
 
-export default App;
+export default App

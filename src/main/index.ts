@@ -67,14 +67,15 @@ app.whenReady().then(() => {
     try {
       const filePath = await scanPage(deviceId)
       const buffer = await fs.promises.readFile(filePath)
-      return { 
-        success: true, 
-        path: filePath, 
-        image: `data:image/jpeg;base64,${buffer.toString('base64')}` 
+      return {
+        success: true,
+        path: filePath,
+        image: `data:image/jpeg;base64,${buffer.toString('base64')}`
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error('Scan failed:', e)
-      return { success: false, error: e.message }
+      const errorMessage = e instanceof Error ? e.message : String(e)
+      return { success: false, error: errorMessage }
     }
   })
 
