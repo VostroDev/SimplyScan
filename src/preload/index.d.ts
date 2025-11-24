@@ -8,6 +8,7 @@ declare global {
       scanPage: (
         deviceId: string
       ) => Promise<{ success: boolean; path?: string; image?: string; error?: string }>
+      cleanupSession: () => Promise<{ success: boolean }>
     }
   }
 }

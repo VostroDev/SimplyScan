@@ -4,7 +4,8 @@ import { electronAPI } from '@electron-toolkit/preload'
 // Custom APIs for renderer
 const api = {
   getScanners: () => ipcRenderer.invoke('get-scanners'),
-  scanPage: (deviceId: string) => ipcRenderer.invoke('scan-page', deviceId)
+  scanPage: (deviceId: string) => ipcRenderer.invoke('scan-page', deviceId),
+  cleanupSession: () => ipcRenderer.invoke('cleanup-session')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

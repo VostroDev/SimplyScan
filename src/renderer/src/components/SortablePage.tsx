@@ -9,7 +9,7 @@ interface SortablePageProps {
   onDelete: (id: string) => void
 }
 
-export function SortablePage({ id, image, index, onDelete }: SortablePageProps): JSX.Element {
+export function SortablePage({ id, image, index, onDelete }: SortablePageProps): React.ReactElement {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id
   })

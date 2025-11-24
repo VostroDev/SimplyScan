@@ -13,7 +13,10 @@ asarUnpack:
   - resources/**
 win:
   executableName: simplyscan
+  icon: build/icon.ico
 nsis:
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}

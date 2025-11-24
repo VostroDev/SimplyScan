@@ -115,24 +115,34 @@ function App(): React.ReactElement {
     try {
       const doc = new jsPDF()
 
-      pages.forEach((page, index) => {
+      // For PDF generation with file URLs (scan://), jsPDF might need the data URL or base64.
+      // Since we now use scan://, we might need to fetch the blob/base64 for jsPDF.
+
+      for (let index = 0; index < pages.length; index++) {
+        const page = pages[index]
         if (index > 0) doc.addPage()
 
-        const imgProps = doc.getImageProperties(page.image)
+        // Fetch the image data from the custom protocol
+        const response = await fetch(page.image)
+        const blob = await response.blob()
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.readAsDataURL(blob)
+        })
+
+        const imgProps = doc.getImageProperties(base64)
         const pdfWidth = doc.internal.pageSize.getWidth()
         const pdfHeight = doc.internal.pageSize.getHeight()
 
-        // Fit image to page while maintaining aspect ratio
         const ratio = Math.min(pdfWidth / imgProps.width, pdfHeight / imgProps.height)
         const w = imgProps.width * ratio
         const h = imgProps.height * ratio
-
-        // Center image
         const x = (pdfWidth - w) / 2
         const y = (pdfHeight - h) / 2
 
-        doc.addImage(page.image, 'JPEG', x, y, w, h)
-      })
+        doc.addImage(base64, 'JPEG', x, y, w, h)
+      }
 
       doc.save(`scan-${new Date().toISOString().slice(0, 10)}.pdf`)
 
@@ -146,9 +156,14 @@ function App(): React.ReactElement {
     }
   }
 
-  const handleClearSession = (): void => {
+  const handleClearSession = async (): Promise<void> => {
     if (confirm('Are you sure you want to clear all scanned pages?')) {
       setPages([])
+      try {
+        await window.api.cleanupSession()
+      } catch (e) {
+        console.error('Failed to cleanup session:', e)
+      }
     }
   }
 
