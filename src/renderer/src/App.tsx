@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { jsPDF } from 'jspdf'
 import { v4 as uuidv4 } from 'uuid'
-import { Loader2, Printer, FileDown, RefreshCw } from 'lucide-react'
+import { Loader2, Printer, FileDown, RefreshCw, Info, X } from 'lucide-react'
 import clsx from 'clsx'
+import logo from './assets/logo.png'
 import {
   DndContext,
   closestCenter,
@@ -37,6 +38,7 @@ function App(): React.ReactElement {
   const [pages, setPages] = useState<ScannedPage[]>([])
   const [isScanning, setIsScanning] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [showAbout, setShowAbout] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const sensors = useSensors(
@@ -179,8 +181,49 @@ function App(): React.ReactElement {
           >
             <RefreshCw className="w-4 h-4" />
           </button>
+          <button
+            onClick={() => setShowAbout(true)}
+            className="p-2 text-gray-500 hover:bg-gray-100 rounded-full"
+            title="About"
+          >
+            <Info className="w-4 h-4" />
+          </button>
         </div>
       </header>
+
+      {/* About Modal */}
+      {showAbout && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl relative">
+            <button
+              onClick={() => setShowAbout(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex flex-col items-center text-center space-y-4">
+              <img src={logo} alt="Wilteq Logo" className="h-16 object-contain" />
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">SimplyScan</h2>
+                <p className="text-sm text-gray-500">Version 1.0.0</p>
+              </div>
+              <p className="text-gray-600 text-sm">
+                Simple document scanning for Windows.
+                <br />
+                Built by Wilteq.
+              </p>
+              <a
+                href="https://wilteq.co.za/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline text-sm font-medium"
+              >
+                wilteq.co.za
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 p-6 overflow-auto">
