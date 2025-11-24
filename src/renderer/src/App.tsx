@@ -1,8 +1,24 @@
 import { useEffect, useState } from 'react';
 import { jsPDF } from 'jspdf';
 import { v4 as uuidv4 } from 'uuid';
-import { Loader2, Printer, Save, Trash2, FileDown, RefreshCw } from 'lucide-react';
+import { Loader2, Printer, FileDown, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
+import {
+  DndContext, 
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import { SortablePage } from './components/SortablePage';
 
 interface Scanner {
   id: string;
@@ -22,6 +38,13 @@ function App(): JSX.Element {
   const [isScanning, setIsScanning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     loadScanners();
@@ -66,6 +89,18 @@ function App(): JSX.Element {
 
   const handleDeletePage = (id: string) => {
     setPages(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      setPages((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
   };
 
   const handleSavePDF = async () => {
@@ -157,27 +192,28 @@ function App(): JSX.Element {
             <p className="text-lg">Ready to scan. Select a scanner and click "Scan Page".</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {pages.map((page, index) => (
-              <div key={page.id} className="relative group bg-white p-2 rounded-lg shadow-sm border border-gray-200">
-                <div className="aspect-[1/1.41] overflow-hidden rounded-md bg-gray-100 relative">
-                  <img src={page.image} alt={`Page ${index + 1}`} className="w-full h-full object-contain" />
-                </div>
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                  <button 
-                    onClick={() => handleDeletePage(page.id)}
-                    className="p-2 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600"
-                    title="Delete Page"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="mt-2 text-center text-sm text-gray-500">
-                  Page {index + 1}
-                </div>
+          <DndContext 
+            sensors={sensors} 
+            collisionDetection={closestCenter} 
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext 
+              items={pages.map(p => p.id)} 
+              strategy={rectSortingStrategy}
+            >
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {pages.map((page, index) => (
+                  <SortablePage 
+                    key={page.id} 
+                    id={page.id} 
+                    image={page.image} 
+                    index={index} 
+                    onDelete={handleDeletePage} 
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            </SortableContext>
+          </DndContext>
         )}
       </main>
 
