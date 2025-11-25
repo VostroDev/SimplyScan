@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf'
 import { v4 as uuidv4 } from 'uuid'
 import { Loader2, Printer, FileDown, RefreshCw, Info, X } from 'lucide-react'
 import clsx from 'clsx'
+import toast, { Toaster } from 'react-hot-toast'
 import logo from './assets/logo.png'
 import {
   DndContext,
@@ -38,6 +39,7 @@ function App(): React.ReactElement {
   const [pages, setPages] = useState<ScannedPage[]>([])
   const [isScanning, setIsScanning] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -52,21 +54,48 @@ function App(): React.ReactElement {
     loadScanners()
   }, [])
 
-  const loadScanners = async (): Promise<void> => {
+  const loadScanners = async (showToast = false): Promise<void> => {
+    setIsRefreshing(true)
     try {
       const list = await window.api.getScanners()
       setScanners(list)
       if (list.length > 0) {
         setSelectedScanner(list[0].id)
       }
+      if (showToast) {
+        if (list.length > 0) {
+          toast.success(`Found ${list.length} scanner${list.length > 1 ? 's' : ''}`, {
+            duration: 3000,
+            icon: '✓'
+          })
+        } else {
+          toast.error('No scanners found', {
+            duration: 3000,
+            icon: '⚠️'
+          })
+        }
+      }
     } catch (err) {
       console.error('Failed to load scanners', err)
       setError('Failed to load scanners. Ensure WIA is enabled.')
+      if (showToast) {
+        toast.error('Failed to refresh scanners', {
+          duration: 3000
+        })
+      }
+    } finally {
+      setIsRefreshing(false)
     }
   }
 
   const handleScan = async (): Promise<void> => {
-    if (!selectedScanner) return
+    if (!selectedScanner) {
+      toast.error('No scanner selected. Please connect a scanner and refresh.', {
+        duration: 4000,
+        icon: '🖨️'
+      })
+      return
+    }
     setIsScanning(true)
     setError(null)
 
@@ -169,6 +198,7 @@ function App(): React.ReactElement {
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col text-gray-900">
+      <Toaster position="top-right" />
       {/* Header */}
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm shrink-0">
         <div className="flex items-center gap-2">
@@ -190,11 +220,17 @@ function App(): React.ReactElement {
             ))}
           </select>
           <button
-            onClick={loadScanners}
-            className="p-2 text-gray-500 hover:bg-gray-100 rounded-full"
+            onClick={() => loadScanners(true)}
+            disabled={isRefreshing}
+            className={clsx(
+              'p-2 rounded-full transition-colors',
+              isRefreshing
+                ? 'text-gray-400 cursor-not-allowed'
+                : 'text-gray-500 hover:bg-gray-100'
+            )}
             title="Refresh Scanners"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={clsx('w-4 h-4', isRefreshing && 'animate-spin')} />
           </button>
           <button
             onClick={() => setShowAbout(true)}
@@ -300,7 +336,7 @@ function App(): React.ReactElement {
 
           <button
             onClick={handleScan}
-            disabled={isScanning || !selectedScanner}
+            disabled={isScanning}
             className={clsx(
               'flex items-center gap-2 px-6 py-2 rounded-md text-white font-medium transition-all shadow-sm',
               isScanning
