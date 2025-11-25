@@ -6,6 +6,10 @@
   "author": "Wilteq",
   "homepage": "https://wilteq.co.za",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VostroDev/SimplyScan.git"
+  },
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -28,6 +32,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.6.2",
     "jspdf": "^3.0.4",
     "lucide-react": "^0.554.0",
     "react-hot-toast": "^2.6.0",

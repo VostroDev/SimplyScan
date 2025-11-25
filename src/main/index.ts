@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, protocol, net } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/icon.png?asset'
 import { listScanners, scanPage } from './scanner'
 import fs from 'fs'
@@ -14,9 +15,72 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
+// Auto-updater configuration
+let mainWindow: BrowserWindow | null = null
+
+function setupAutoUpdater(): void {
+  // Don't check for updates in development
+  if (is.dev) {
+    console.log('Auto-updater disabled in development mode')
+    return
+  }
+
+  // Configure auto-updater
+  autoUpdater.autoDownload = false // Don't auto-download, let user decide
+  autoUpdater.autoInstallOnAppQuit = true
+
+  // Event handlers
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Checking for updates...')
+    mainWindow?.webContents.send('update-checking')
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('Update available:', info.version)
+    mainWindow?.webContents.send('update-available', info)
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('No updates available')
+    mainWindow?.webContents.send('update-not-available')
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    console.log(`Download progress: ${progress.percent}%`)
+    mainWindow?.webContents.send('update-download-progress', progress)
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('Update downloaded:', info.version)
+    mainWindow?.webContents.send('update-downloaded', info)
+  })
+
+  autoUpdater.on('error', (error) => {
+    console.error('Auto-updater error:', error)
+    mainWindow?.webContents.send('update-error', error.message)
+  })
+
+  // Check for updates on startup (after a delay to let the app initialize)
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error('Failed to check for updates:', err)
+    })
+  }, 3000)
+
+  // Check for updates every hour
+  setInterval(
+    () => {
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.error('Failed to check for updates:', err)
+      })
+    },
+    60 * 60 * 1000
+  ) // 1 hour
+}
+
 function createWindow(): void {
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
     minWidth: 600,
@@ -31,7 +95,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+    mainWindow?.show()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -113,7 +177,44 @@ app.whenReady().then(() => {
     }
   })
 
+  // Auto-updater IPC handlers
+  ipcMain.handle('check-for-updates', async () => {
+    if (is.dev) {
+      return { available: false, message: 'Updates disabled in development' }
+    }
+    try {
+      const result = await autoUpdater.checkForUpdates()
+      return { available: true, info: result?.updateInfo }
+    } catch (error) {
+      console.error('Check for updates failed:', error)
+      return { available: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('download-update', async () => {
+    if (is.dev) {
+      return { success: false, message: 'Updates disabled in development' }
+    }
+    try {
+      await autoUpdater.downloadUpdate()
+      return { success: true }
+    } catch (error) {
+      console.error('Download update failed:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('install-update', () => {
+    if (is.dev) {
+      return
+    }
+    autoUpdater.quitAndInstall(false, true)
+  })
+
   createWindow()
+
+  // Setup auto-updater after window is created
+  setupAutoUpdater()
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

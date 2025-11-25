@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { jsPDF } from 'jspdf'
 import { v4 as uuidv4 } from 'uuid'
-import { Loader2, Printer, FileDown, RefreshCw, Info, X } from 'lucide-react'
+import { Loader2, Printer, FileDown, RefreshCw, Info, X, Download } from 'lucide-react'
 import clsx from 'clsx'
 import toast, { Toaster } from 'react-hot-toast'
 import logo from './assets/logo.png'
@@ -33,6 +33,15 @@ interface ScannedPage {
   path: string
 }
 
+interface UpdateInfo {
+  version: string
+  releaseNotes?: string
+}
+
+interface UpdateProgress {
+  percent: number
+}
+
 function App(): React.ReactElement {
   const [scanners, setScanners] = useState<Scanner[]>([])
   const [selectedScanner, setSelectedScanner] = useState<string>('')
@@ -43,6 +52,13 @@ function App(): React.ReactElement {
   const [showAbout, setShowAbout] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Update-related state
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [isDownloadingUpdate, setIsDownloadingUpdate] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState(0)
+  const [updateDownloaded, setUpdateDownloaded] = useState(false)
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false)
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -52,6 +68,44 @@ function App(): React.ReactElement {
 
   useEffect(() => {
     loadScanners()
+
+    // Setup update event listeners
+    const unsubUpdateAvailable = window.api.onUpdateAvailable((info) => {
+      setUpdateInfo(info as UpdateInfo)
+      setShowUpdateDialog(true)
+      toast.success(`New version ${(info as UpdateInfo).version} available!`, {
+        duration: 5000,
+        icon: '🎉'
+      })
+    })
+
+    const unsubUpdateDownloaded = window.api.onUpdateDownloaded((info) => {
+      setUpdateDownloaded(true)
+      setIsDownloadingUpdate(false)
+      toast.success(`Update ${(info as UpdateInfo).version} ready to install!`, {
+        duration: 0, // Don't auto-dismiss
+        icon: '✅'
+      })
+    })
+
+    const unsubUpdateProgress = window.api.onUpdateDownloadProgress((progress) => {
+      setDownloadProgress((progress as UpdateProgress).percent)
+    })
+
+    const unsubUpdateError = window.api.onUpdateError((error) => {
+      setIsDownloadingUpdate(false)
+      toast.error(`Update error: ${error}`, {
+        duration: 5000
+      })
+    })
+
+    // Cleanup listeners on unmount
+    return () => {
+      unsubUpdateAvailable()
+      unsubUpdateDownloaded()
+      unsubUpdateProgress()
+      unsubUpdateError()
+    }
   }, [])
 
   const loadScanners = async (showToast = false): Promise<void> => {
@@ -196,6 +250,30 @@ function App(): React.ReactElement {
     }
   }
 
+  const handleDownloadUpdate = async (): Promise<void> => {
+    setIsDownloadingUpdate(true)
+    setShowUpdateDialog(false)
+    toast.loading('Downloading update...', {
+      duration: 0,
+      id: 'update-download'
+    })
+    try {
+      await window.api.downloadUpdate()
+    } catch (error) {
+      console.error('Failed to download update:', error)
+      setIsDownloadingUpdate(false)
+      toast.dismiss('update-download')
+    }
+  }
+
+  const handleInstallUpdate = (): void => {
+    window.api.installUpdate()
+  }
+
+  const handleDismissUpdate = (): void => {
+    setShowUpdateDialog(false)
+  }
+
   return (
     <div className="h-screen bg-gray-50 flex flex-col text-gray-900">
       <Toaster position="top-right" />
@@ -224,9 +302,7 @@ function App(): React.ReactElement {
             disabled={isRefreshing}
             className={clsx(
               'p-2 rounded-full transition-colors',
-              isRefreshing
-                ? 'text-gray-400 cursor-not-allowed'
-                : 'text-gray-500 hover:bg-gray-100'
+              isRefreshing ? 'text-gray-400 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-100'
             )}
             title="Refresh Scanners"
           >
@@ -273,6 +349,95 @@ function App(): React.ReactElement {
               </a>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Update Available Dialog */}
+      {showUpdateDialog && updateInfo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-blue-100 rounded-full">
+                <Download className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-gray-800 mb-2">Update Available</h2>
+                <p className="text-gray-600 mb-4">
+                  Version {updateInfo.version} is now available. Would you like to download it?
+                </p>
+                {updateInfo.releaseNotes && (
+                  <div className="mb-4 p-3 bg-gray-50 rounded text-sm text-gray-700 max-h-32 overflow-y-auto">
+                    {updateInfo.releaseNotes}
+                  </div>
+                )}
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={handleDismissUpdate}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md text-sm font-medium transition-colors"
+                  >
+                    Later
+                  </button>
+                  <button
+                    onClick={handleDownloadUpdate}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+                  >
+                    Download
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update Downloaded Dialog */}
+      {updateDownloaded && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-green-100 rounded-full">
+                <Download className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-gray-800 mb-2">Update Ready</h2>
+                <p className="text-gray-600 mb-4">
+                  The update has been downloaded and is ready to install. The application will
+                  restart to complete the installation.
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setUpdateDownloaded(false)}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md text-sm font-medium transition-colors"
+                  >
+                    Later
+                  </button>
+                  <button
+                    onClick={handleInstallUpdate}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition-colors"
+                  >
+                    Restart & Install
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Download Progress Toast */}
+      {isDownloadingUpdate && downloadProgress > 0 && (
+        <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-xl p-4 min-w-[300px] z-50">
+          <div className="flex items-center gap-3 mb-2">
+            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+            <span className="font-medium text-gray-800">Downloading Update</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${Math.round(downloadProgress)}%` }}
+            />
+          </div>
+          <p className="text-sm text-gray-600 mt-2">{Math.round(downloadProgress)}% complete</p>
         </div>
       )}
 

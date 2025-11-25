@@ -153,6 +153,74 @@ SimplyScan/
 └── package.json
 ```
 
+## 🚀 Releasing New Versions
+
+SimplyScan includes automatic update functionality powered by `electron-updater` and GitHub Releases.
+
+### How Auto-Updates Work
+
+*   The app checks for updates on startup and every hour
+*   When an update is available, users are notified with a dialog
+*   Users can choose to download the update immediately or later
+*   After downloading, users are prompted to restart and install
+*   Updates are delivered via GitHub Releases
+
+### Publishing a New Release
+
+1. **Update Version Number**
+
+```bash
+# Update version in package.json
+npm version patch  # or minor, or major
+```
+
+2. **Build the Application**
+
+```bash
+npm run build:win
+```
+
+3. **Create GitHub Release**
+
+*   Go to your GitHub repository
+*   Click "Releases" → "Create a new release"
+*   Create a new tag (e.g., `v1.0.1`) matching the version in package.json
+*   Upload the installer file from `dist/` folder (e.g., `simplyscan-1.0.1-setup.exe`)
+*   Upload the `latest.yml` file from `dist/` folder (required for auto-updates)
+*   Publish the release
+
+4. **Users Get Notified**
+
+*   Existing users will automatically be notified of the new version
+*   They can download and install the update directly from the app
+
+### Code Signing (Recommended)
+
+**Important:** Without code signing, Windows will show SmartScreen warnings. To sign your app:
+
+*   Obtain a Windows code signing certificate ($50-400/year)
+*   Add certificate details to `electron-builder.yml`:
+
+```yaml
+win:
+  certificateFile: path/to/cert.pfx
+  certificatePassword: your-password
+```
+
+*   Or use environment variables:
+
+```bash
+set CSC_LINK=path/to/cert.pfx
+set CSC_KEY_PASSWORD=your-password
+npm run build:win
+```
+
+### Development vs Production
+
+*   Auto-updates are **disabled in development mode** to prevent conflicts
+*   Only production builds will check for and download updates
+*   Use `npm run build:win` to create production builds with update functionality
+
 ## 📝 License
 
 This project is licensed under the MIT License.
