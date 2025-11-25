@@ -1,6 +1,6 @@
 # SimplyScan 🖨️
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)
 ![Electron](https://img.shields.io/badge/electron-38.1.2-47848f.svg)
 ![React](https://img.shields.io/badge/react-19.1.1-61dafb.svg)
