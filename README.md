@@ -49,7 +49,7 @@ A modern, lightweight, and efficient desktop application for scanning documents 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/simplyscan.git
+git clone https://github.com/vostrodev/simplyscan.git
 cd simplyscan
 ```
 
