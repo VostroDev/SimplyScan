@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react'
 import { jsPDF } from 'jspdf'
 import { v4 as uuidv4 } from 'uuid'
-import { Loader2, Printer, FileDown, RefreshCw, Info, X, Download } from 'lucide-react'
+import {
+  Loader2,
+  Printer,
+  FileDown,
+  RefreshCw,
+  Info,
+  X,
+  Download,
+  AlertTriangle,
+  Trash2
+} from 'lucide-react'
 import clsx from 'clsx'
 import toast, { Toaster } from 'react-hot-toast'
 import logo from './assets/logo.png'
@@ -52,12 +62,21 @@ function App(): React.ReactElement {
   const [showAbout, setShowAbout] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // App version
+  const [appVersion, setAppVersion] = useState<string>('...')
+
   // Update-related state
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [isDownloadingUpdate, setIsDownloadingUpdate] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(0)
   const [updateDownloaded, setUpdateDownloaded] = useState(false)
   const [showUpdateDialog, setShowUpdateDialog] = useState(false)
+
+  // Close confirmation
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+
+  // Clear all confirmation
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -68,6 +87,9 @@ function App(): React.ReactElement {
 
   useEffect(() => {
     loadScanners()
+
+    // Load app version
+    window.api.getAppVersion().then(setAppVersion)
 
     // Setup update event listeners
     const unsubUpdateAvailable = window.api.onUpdateAvailable((info) => {
@@ -99,14 +121,25 @@ function App(): React.ReactElement {
       })
     })
 
+    // Listen for close confirmation request
+    const unsubConfirmClose = window.api.onConfirmClose(() => {
+      setShowCloseConfirm(true)
+    })
+
     // Cleanup listeners on unmount
     return () => {
       unsubUpdateAvailable()
       unsubUpdateDownloaded()
       unsubUpdateProgress()
       unsubUpdateError()
+      unsubConfirmClose()
     }
   }, [])
+
+  // Track unsaved pages for close confirmation
+  useEffect(() => {
+    window.api.setHasUnsavedPages(pages.length > 0)
+  }, [pages.length])
 
   const loadScanners = async (showToast = false): Promise<void> => {
     setIsRefreshing(true)
@@ -227,10 +260,30 @@ function App(): React.ReactElement {
         doc.addImage(base64, 'JPEG', x, y, w, h)
       }
 
-      doc.save(`scan-${new Date().toISOString().slice(0, 10)}.pdf`)
+      // Get PDF as array buffer and save via native dialog
+      const pdfBuffer = doc.output('arraybuffer')
+      const pdfData = Array.from(new Uint8Array(pdfBuffer))
 
-      // Optional: Clear pages after save or ask user?
-      // For now, just notify.
+      const result = await window.api.savePdf(pdfData)
+
+      if (result.canceled) {
+        // User cancelled the save dialog
+        return
+      }
+
+      if (!result.success) {
+        setError(result.error || 'Failed to save PDF.')
+        return
+      }
+
+      // Mark as saved so user can close without warning
+      window.api.setHasUnsavedPages(false)
+
+      const fileName = result.filePath?.split(/[\\/]/).pop() || 'PDF'
+      toast.success(`Saved ${pages.length} page${pages.length !== 1 ? 's' : ''} to ${fileName}`, {
+        duration: 4000,
+        icon: '✓'
+      })
     } catch (err) {
       console.error(err)
       setError('Failed to save PDF.')
@@ -239,14 +292,17 @@ function App(): React.ReactElement {
     }
   }
 
-  const handleClearSession = async (): Promise<void> => {
-    if (confirm('Are you sure you want to clear all scanned pages?')) {
-      setPages([])
-      try {
-        await window.api.cleanupSession()
-      } catch (e) {
-        console.error('Failed to cleanup session:', e)
-      }
+  const handleClearSession = (): void => {
+    setShowClearConfirm(true)
+  }
+
+  const confirmClearSession = async (): Promise<void> => {
+    setShowClearConfirm(false)
+    setPages([])
+    try {
+      await window.api.cleanupSession()
+    } catch (e) {
+      console.error('Failed to cleanup session:', e)
     }
   }
 
@@ -332,7 +388,7 @@ function App(): React.ReactElement {
               <img src={logo} alt="Wilteq Logo" className="h-16 object-contain" />
               <div>
                 <h2 className="text-xl font-bold text-gray-800">SimplyScan</h2>
-                <p className="text-sm text-gray-500">Version 1.0.0</p>
+                <p className="text-sm text-gray-500">Version {appVersion}</p>
               </div>
               <p className="text-gray-600 text-sm">
                 Simple document scanning for Windows.
@@ -347,6 +403,80 @@ function App(): React.ReactElement {
               >
                 wilteq.co.za
               </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Close Confirmation Modal */}
+      {showCloseConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-amber-100 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-gray-800 mb-2">Unsaved Scans</h2>
+                <p className="text-gray-600 mb-2">
+                  You have {pages.length} scanned page{pages.length !== 1 ? 's' : ''} that{' '}
+                  {pages.length === 1 ? 'has' : 'have'} not been saved to PDF.
+                </p>
+                <p className="text-gray-500 text-sm mb-4">
+                  Your scanned images will remain in temp files for backup.
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setShowCloseConfirm(false)}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md text-sm font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCloseConfirm(false)
+                      window.api.forceClose()
+                    }}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-sm font-medium transition-colors"
+                  >
+                    Close Anyway
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear All Confirmation Modal */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-red-100 rounded-full">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-gray-800 mb-2">Clear All Pages</h2>
+                <p className="text-gray-600 mb-4">
+                  Are you sure you want to clear all {pages.length} scanned page
+                  {pages.length !== 1 ? 's' : ''}? This action cannot be undone.
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setShowClearConfirm(false)}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md text-sm font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmClearSession}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

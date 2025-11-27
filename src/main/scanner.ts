@@ -29,6 +29,9 @@ try {
 }
 `
 
+// Timeout for listing scanners (30 seconds)
+const LIST_SCANNERS_TIMEOUT_MS = 30_000
+
 export const listScanners = async (): Promise<ScannerDevice[]> => {
   const tempDir = app.getPath('temp')
   const scriptPath = path.join(tempDir, `list-scanners-${Date.now()}.ps1`)
@@ -46,6 +49,16 @@ export const listScanners = async (): Promise<ScannerDevice[]> => {
 
     let output = ''
     let error = ''
+    let timedOut = false
+
+    // Timeout to prevent hanging if WIA is unresponsive
+    const timeout = setTimeout(() => {
+      if (!ps.killed) {
+        timedOut = true
+        ps.kill()
+        console.error('List scanners timed out after 30 seconds')
+      }
+    }, LIST_SCANNERS_TIMEOUT_MS)
 
     ps.stdout.on('data', (data) => {
       output += data.toString()
@@ -56,10 +69,17 @@ export const listScanners = async (): Promise<ScannerDevice[]> => {
     })
 
     ps.on('close', async (code) => {
+      clearTimeout(timeout)
+
       try {
         await fs.promises.unlink(scriptPath)
       } catch (e) {
         console.error('Failed to cleanup temp script:', e)
+      }
+
+      if (timedOut) {
+        resolve([])
+        return
       }
 
       if (code !== 0) {
@@ -143,6 +163,9 @@ try {
 
   await fs.promises.writeFile(scriptPath, actualScript)
 
+  // Timeout for scanning (2 minutes - scanners can be slow)
+  const SCAN_TIMEOUT_MS = 120_000
+
   return new Promise((resolve, reject) => {
     const powershell = process.env.SystemRoot
       ? path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
@@ -153,20 +176,32 @@ try {
     })
 
     let error = ''
-
     let stdout = ''
+    let timedOut = false
+
+    // Timeout to prevent app from hanging if scanner is unresponsive
+    const timeout = setTimeout(() => {
+      if (!ps.killed) {
+        timedOut = true
+        ps.kill()
+      }
+    }, SCAN_TIMEOUT_MS)
 
     ps.stdout.on('data', (d) => (stdout += d.toString()))
     ps.stderr.on('data', (d) => (error += d.toString()))
 
     ps.on('close', async (code) => {
+      clearTimeout(timeout)
+
       try {
         await fs.promises.unlink(scriptPath)
       } catch (e) {
         console.error('Failed to cleanup scan script:', e)
       }
 
-      if (code !== 0) {
+      if (timedOut) {
+        reject(new Error('Scan timed out. Please check your scanner and try again.'))
+      } else if (code !== 0) {
         reject(new Error(`Scan failed: ${error || 'Unknown error'}`))
       } else {
         resolve(outputDetailsPath)

@@ -18,11 +18,21 @@ declare global {
   interface Window {
     electron: ElectronAPI
     api: {
+      getAppVersion: () => Promise<string>
       getScanners: () => Promise<{ id: string; name: string }[]>
       scanPage: (
         deviceId: string
       ) => Promise<{ success: boolean; path?: string; image?: string; error?: string }>
       cleanupSession: () => Promise<{ success: boolean }>
+      savePdf: (pdfData: number[]) => Promise<{
+        success: boolean
+        canceled?: boolean
+        filePath?: string
+        error?: string
+      }>
+      setHasUnsavedPages: (value: boolean) => void
+      forceClose: () => void
+      onConfirmClose: (callback: () => void) => () => void
       // Auto-updater methods
       checkForUpdates: () => Promise<{ available: boolean; info?: UpdateInfo; error?: string }>
       downloadUpdate: () => Promise<{ success: boolean; error?: string }>

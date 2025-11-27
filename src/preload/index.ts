@@ -3,9 +3,17 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
 const api = {
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getScanners: () => ipcRenderer.invoke('get-scanners'),
   scanPage: (deviceId: string) => ipcRenderer.invoke('scan-page', deviceId),
   cleanupSession: () => ipcRenderer.invoke('cleanup-session'),
+  savePdf: (pdfData: number[]) => ipcRenderer.invoke('save-pdf', pdfData),
+  setHasUnsavedPages: (value: boolean) => ipcRenderer.send('set-has-unsaved-pages', value),
+  forceClose: () => ipcRenderer.send('force-close'),
+  onConfirmClose: (callback: () => void) => {
+    ipcRenderer.on('confirm-close', callback)
+    return () => ipcRenderer.removeListener('confirm-close', callback)
+  },
   // Auto-updater APIs
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   downloadUpdate: () => ipcRenderer.invoke('download-update'),

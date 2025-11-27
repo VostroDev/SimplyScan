@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, protocol } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, protocol, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
@@ -23,6 +23,7 @@ protocol.registerSchemesAsPrivileged([
 
 // Auto-updater configuration
 let mainWindow: BrowserWindow | null = null
+let hasUnsavedPages = false
 
 function setupAutoUpdater(): void {
   // Don't check for updates in development
@@ -104,6 +105,15 @@ function createWindow(): void {
     mainWindow?.show()
   })
 
+  // Confirm close if there are unsaved scanned pages
+  mainWindow.on('close', (e) => {
+    if (hasUnsavedPages) {
+      e.preventDefault()
+      // Send to renderer to show custom modal
+      mainWindow?.webContents.send('confirm-close')
+    }
+  })
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -123,7 +133,7 @@ function createWindow(): void {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('com.wilteq.simplyscan')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -134,6 +144,20 @@ app.whenReady().then(() => {
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
+
+  // Get app version
+  ipcMain.handle('get-app-version', () => app.getVersion())
+
+  // Track unsaved pages for close confirmation
+  ipcMain.on('set-has-unsaved-pages', (_, value: boolean) => {
+    hasUnsavedPages = value
+  })
+
+  // Force close (user confirmed in custom modal)
+  ipcMain.on('force-close', () => {
+    hasUnsavedPages = false
+    mainWindow?.close()
+  })
 
   // Custom protocol for serving scanned images from temp directory
   protocol.handle('scan', async (request) => {
@@ -193,6 +217,29 @@ app.whenReady().then(() => {
     } catch (e) {
       console.error('Cleanup failed:', e)
       return { success: false }
+    }
+  })
+
+  // Save PDF with native dialog
+  ipcMain.handle('save-pdf', async (_, pdfData: number[]) => {
+    const defaultFileName = `scan-${new Date().toISOString().slice(0, 10)}.pdf`
+
+    const result = await dialog.showSaveDialog(mainWindow!, {
+      title: 'Save PDF',
+      defaultPath: path.join(app.getPath('documents'), defaultFileName),
+      filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
+    })
+
+    if (result.canceled || !result.filePath) {
+      return { success: false, canceled: true }
+    }
+
+    try {
+      await fs.promises.writeFile(result.filePath, Buffer.from(pdfData))
+      return { success: true, filePath: result.filePath }
+    } catch (e) {
+      console.error('Failed to save PDF:', e)
+      return { success: false, error: e instanceof Error ? e.message : 'Unknown error' }
     }
   })
 
